@@ -66,6 +66,8 @@ def chat():
             "status": "success"
         })
     except Exception as e:
+        import traceback
         print("OpenAI API error:", e)
+        traceback.print_exc()
         return jsonify({"error": "AI service unavailable", "status": "error"}), 503
 
