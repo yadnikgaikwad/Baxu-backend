@@ -23,7 +23,7 @@ def load_system_prompt():
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         prompt_path = os.path.join(base_dir, "system_prompt.txt")
         print("Looking for system_prompt.txt at:", prompt_path)
-        with open(prompt_path, 'r') as f:
+        with open(prompt_path, 'r', encoding='utf-8') as f:
             return f.read()
     except FileNotFoundError:
         print("system_prompt.txt file not found. Please ensure the file exists in the correct directory.")
@@ -40,41 +40,32 @@ def chat():
     # Load system prompt
     system_prompt = load_system_prompt()
 
-    # Fireworks API setup
-    fireworks_api_key = os.getenv("FIREWORKS_API_KEY")
-    if not fireworks_api_key:
-        return jsonify({"error": "FIREWORKS_API_KEY not set", "status": "error"}), 500
-
-    url = "https://api.fireworks.ai/inference/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {fireworks_api_key}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "model": "accounts/fireworks/models/kimi-k2-instruct",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": message}
-        ],
-        "temperature": 0.7,
-        "max_tokens": 300
-    }
+    # OpenAI API setup
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    openai_api_base = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
+    if not openai_api_key:
+        return jsonify({"error": "OPENAI_API_KEY not set", "status": "error"}), 500
 
     try:
-        fw_response = requests.post(url, headers=headers, json=payload, timeout=30)
-        fw_response.raise_for_status()
-        data = fw_response.json()
-        if data.get("choices") and len(data["choices"]) > 0:
-            ai_message = data["choices"][0]["message"]["content"].strip()
-            return jsonify({
-                "response": ai_message,
-                "conversation_id": str(uuid.uuid4()),
-                "timestamp": datetime.utcnow().isoformat(),
-                "status": "success"
-            })
-        else:
-            return jsonify({"error": "No response from Fireworks AI", "status": "error"}), 502
+        openai.api_key = openai_api_key
+        openai.api_base = openai_api_base
+        response = openai.ChatCompletion.create(
+            model="gpt-4o",  # or "gpt-3.5-turbo" if you don't have access to gpt-4o
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": message}
+            ],
+            temperature=0.7,
+            max_tokens=300,
+        )
+        ai_message = response.choices[0].message['content'].strip()
+        return jsonify({
+            "response": ai_message,
+            "conversation_id": str(uuid.uuid4()),
+            "timestamp": datetime.utcnow().isoformat(),
+            "status": "success"
+        })
     except Exception as e:
-        print("Fireworks API error:", e)
+        print("OpenAI API error:", e)
         return jsonify({"error": "AI service unavailable", "status": "error"}), 503
 
